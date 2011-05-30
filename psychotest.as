@@ -5,17 +5,48 @@
 	import fl.motion.MotionEvent;
 	import flash.display.Shape;
 	import flash.display.Graphics;
+	import flash.display.BitmapData;
 	
 	
 	public class psychotest extends MovieClip {
+		const BORDER = 0;
+		const INNER  = 1;
+		const OUTER  = 2;
+		
 		private var drawingShape: Shape;
 		private var currentColor: uint = 0x000000;
+		
+		private var bordersMask: BitmapData;
+		private var innerMask: BitmapData;
+		private var framesMask: BitmapData;
+		
+		private var figures: Array;
 		
 		public function psychotest() {
 			this.initPallete();
 			
+			this.framesMask = new figures_masks_frames();
+			this.innerMask = new figures_masks_inner();
+			this.bordersMask = new figures_masks_borders();
+			
 			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
 			cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			
+			figures = [];
+			for(var i:int = 0; i < 3; i++)
+			{
+				figures[i] = [];
+				for(var j:int = 0; j < 3; j++)
+				{
+					figures[i][j] = [];
+					for(var k:int = 0; k < 3; k++)
+					{
+						figures[i][j][k] = 0;
+					}
+				}
+			}
+			
+			res_btn.addEventListener(MouseEvent.CLICK, showResults); 
 		}
 		
 		public function initPallete() {
@@ -56,6 +87,11 @@
 			this.currentColor = e.target.color;
 		}
 		
+		private function showResults(e:MouseEvent):void
+		{
+			trace(this.figures);
+		}
+		
 		private function startDrawing(e:MouseEvent):void
 		{
 			drawingShape = new Shape();
@@ -64,7 +100,7 @@
 			
 			drawingShape.graphics.lineStyle(10, this.currentColor);
 			drawingShape.graphics.moveTo(mouseX, mouseY);
-			
+			addPoint();
 		}
 		
 		private function stopDrawing(e:MouseEvent): void
@@ -75,6 +111,46 @@
 		private function drawing(e:MouseEvent): void
 		{
 			drawingShape.graphics.lineTo(mouseX, mouseY);
+			addPoint();
+		}
+		
+		private function addPoint()
+		{
+			var rowcol = getFigureCords(cv_mc.figures.mouseX, cv_mc.figures.mouseY);
+			var maskType = getMask(cv_mc.figures.mouseX, cv_mc.figures.mouseY);
+			
+			this.figures[rowcol[0]][rowcol[1]][maskType]++;
+		}
+		
+		private function getMask(x: int, y: int): int
+		{
+			var border: Number = this.bordersMask.getPixel(x, y) / 0xFFFFFF;
+			var inner: Number = this.innerMask.getPixel(x, y) / 0xFFFFFF;
+
+			if(border < .5)
+			{
+				return BORDER;
+			}
+			else if(inner < .5)
+			{
+				return INNER;
+			}
+			else
+			{
+				return OUTER;
+			}
+		}
+		
+		private function getFigureCords(x: int, y: int)
+		{
+			var color = this.framesMask.getPixel(x, y);
+			var g = color >> 8 &0xFF;
+			var b = color & 0xFF;
+			
+			var row = Math.floor(g / 0x33 - 1) as int;
+			var col = Math.floor(b / 0x33 - 1) as int;
+			
+			return new Array(row, col);
 		}
 	}
 	
