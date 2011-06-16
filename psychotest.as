@@ -11,6 +11,7 @@
 	import flash.display.BitmapData;
 	import flash.utils.Dictionary;
 	import rl.dev.*; 
+	import flash.ui.Mouse;
 	
 	
 	public class psychotest extends MovieClip {
@@ -40,17 +41,18 @@
 		public function psychotest() {
 			this.initPallete();
 			
-			/*this.framesMask = new figures_masks_frames();
-			this.innerMask = new figures_masks_inner();
-			this.bordersMask = new figures_masks_borders();*/
+			this.innerMask = new figures_inner();
+			this.bordersMask = new figures_borders();
 			
 			cv_mc.dimmer_mc.alpha = 0;
-			//cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
-			//cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
-			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
 			cv_mc.useHandCursor = true;
 			cv_mc.buttonMode = true;
 			
+			brush_cursor_mc.mouseChildren = false;
+			brush_cursor_mc.mouseEnabled = false;
+			
+			brush_cursor_mc.visible = false;
 			
 			figures = [];
 			for(var i:int = 0; i < 3; i++)
@@ -66,7 +68,7 @@
 				}
 			}
 			
-			panel_mc.res_btn.addEventListener(MouseEvent.CLICK, showResults); 
+			res_btn.addEventListener(MouseEvent.CLICK, showResults); 
 			console = new SWFConsole(640, 550, true)
 			addChild( console );
 		}
@@ -94,6 +96,22 @@
 			
 			// Прячем паллитру
 			new Tween(panel_mc, "y", Strong.easeInOut, 535, 605, .2, true);
+			
+			// Убираем возможность зумаута по фону
+			back_mc.removeEventListener(MouseEvent.MOUSE_UP, zoomInOut);
+			back_mc.buttonMode = true;
+			back_mc.useHandCursor = true;
+			
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
+			cv_mc.useHandCursor = true;
+			cv_mc.buttonMode = true;
+			
+			// Убираем возможность рисовать
+			cv_mc.removeEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
+			cv_mc.removeEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			
+			brush_cursor_mc.visible = false;
+			removeEventListener(MouseEvent.MOUSE_MOVE, cursor);
 		}
 		
 		private function zoomIn(e:MouseEvent)
@@ -117,6 +135,29 @@
 			
 			// Выдвигаем паллитру
 			new Tween(panel_mc, "y", Strong.easeInOut, 605, 535, .7, true);
+			
+			// Добавляем возможность зумаута по фону
+			back_mc.addEventListener(MouseEvent.MOUSE_UP, zoomInOut);
+			back_mc.buttonMode = true;
+			back_mc.useHandCursor = true;
+			
+			cv_mc.removeEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
+			cv_mc.useHandCursor = false;
+			cv_mc.buttonMode = false;
+		}
+		
+		private function cursor(e:MouseEvent)
+		{
+			if(mask_mc.hitTestPoint(mouseX, mouseY))
+			{
+				Mouse.hide();
+				brush_cursor_mc.visible = true
+				brush_cursor_mc.x = mouseX;
+				brush_cursor_mc.y = mouseY;
+			} else {
+				Mouse.show();
+				brush_cursor_mc.visible = false;
+			}
 		}
 		
 		public function initPallete() {
@@ -152,6 +193,7 @@
 			
 			g.lineStyle(1, 0x000000);
 			g.beginFill(color, 1);
+			//g.beginGradientFill("linear", new Array(color, color - 1), new Array(100, 100), new Array(0, 255));
 			g.drawRect(0, 0, 30, 60);
 			g.endFill();
 			
@@ -168,6 +210,12 @@
 		private function chooseColor(e:MouseEvent): void
 		{
 			this.currentColor = e.target.color;
+			
+			// Добавляем возможность рисовать
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
+			cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			
+			addEventListener(MouseEvent.MOUSE_MOVE, cursor);
 		}
 		
 		private function showResults(e:MouseEvent):void //@REFACTOR
@@ -226,11 +274,11 @@
 		private function startDrawing(e:MouseEvent):void
 		{
 			drawingShape = new Shape();
-			this.addChild(drawingShape);
+			cv_mc.addChild(drawingShape);
 			cv_mc.addEventListener(MouseEvent.MOUSE_MOVE, drawing);
 			
-			drawingShape.graphics.lineStyle(10, this.currentColor);
-			drawingShape.graphics.moveTo(mouseX, mouseY);
+			drawingShape.graphics.lineStyle(5, this.currentColor);
+			drawingShape.graphics.moveTo(cv_mc.mouseX, cv_mc.mouseY);
 			addPoint(this.currentColor);
 		}
 		
@@ -241,17 +289,17 @@
 		
 		private function drawing(e:MouseEvent): void
 		{
-			drawingShape.graphics.lineTo(mouseX, mouseY);
+			drawingShape.graphics.lineTo( cv_mc.mouseX, cv_mc.mouseY);
 			addPoint(this.currentColor);
 		}
 		
 		private function addPoint(color: uint)
 		{
-			var rowcol = getFigureCords(cv_mc.figures.mouseX, cv_mc.figures.mouseY);
+			var rowcol = getFigureCords(cv_mc.mouseX, cv_mc.mouseY);
 			
 			if (rowcol)
 			{
-				var maskType = getMask(cv_mc.figures.mouseX, cv_mc.figures.mouseY);
+				var maskType = getMask(cv_mc.mouseX, cv_mc.mouseY);
 				
 				if(color in this.figures[maskType][rowcol[0]][rowcol[1]])
 					this.figures[maskType][rowcol[0]][rowcol[1]][color]++;
@@ -262,6 +310,9 @@
 		
 		private function getMask(x: int, y: int): int
 		{
+			x *= 2;
+			y *= 2;
+			
 			var border: Number = this.bordersMask.getPixel(x, y) / 0xFFFFFF;
 			var inner: Number = this.innerMask.getPixel(x, y) / 0xFFFFFF;
 
