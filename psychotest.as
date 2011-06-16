@@ -1,6 +1,9 @@
 ﻿package  {
 	
+	import fl.transitions.Tween;
+	import fl.transitions.easing.*;
 	import flash.display.MovieClip;
+	import flash.events.Event;
 	import flash.events.MouseEvent;
 	import fl.motion.MotionEvent;
 	import flash.display.Shape;
@@ -15,6 +18,10 @@
 		const INNER  = 1;
 		const OUTER  = 2;
 		
+		const CELL_WIDTH = 180;
+		const CELL_HEIGHT = 160;
+		const BORDER_WIDTH = 5;
+		
 		private var colors: Dictionary;
 		
 		private var drawingShape: Shape;
@@ -27,15 +34,23 @@
 		private var figures: Array;
 		
 		private var console: SWFConsole;
+		
+		private var zoomed: Boolean = false;
+		
 		public function psychotest() {
 			this.initPallete();
 			
-			this.framesMask = new figures_masks_frames();
+			/*this.framesMask = new figures_masks_frames();
 			this.innerMask = new figures_masks_inner();
-			this.bordersMask = new figures_masks_borders();
+			this.bordersMask = new figures_masks_borders();*/
 			
-			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
-			cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			cv_mc.dimmer_mc.alpha = 0;
+			//cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
+			//cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);
+			cv_mc.useHandCursor = true;
+			cv_mc.buttonMode = true;
+			
 			
 			figures = [];
 			for(var i:int = 0; i < 3; i++)
@@ -51,9 +66,57 @@
 				}
 			}
 			
-			res_btn.addEventListener(MouseEvent.CLICK, showResults); 
-			console = new SWFConsole( 640, 480, true)
+			panel_mc.res_btn.addEventListener(MouseEvent.CLICK, showResults); 
+			console = new SWFConsole(640, 550, true)
 			addChild( console );
+		}
+		
+		private function zoomInOut(e:MouseEvent)
+		{
+			if (!zoomed)
+			{
+				zoomIn(e);
+				zoomed = true;
+			} else {
+				zoomOut(e)
+				zoomed = false;
+			}
+		}
+		
+		private function zoomOut(e:MouseEvent)
+		{
+			// Осветление фона
+			new Tween(cv_mc.dimmer_mc, "alpha", Strong.easeInOut, 1.0, 0, .7, true);
+			
+			// Зумируем от фигуры
+			new Tween(cv_mc, "scaleX2", Strong.easeInOut, 2.95, 1, .5, true);
+			new Tween(cv_mc, "scaleY2", Strong.easeInOut, 2.95, 1, .5, true);
+			
+			// Прячем паллитру
+			new Tween(panel_mc, "y", Strong.easeInOut, 535, 605, .2, true);
+		}
+		
+		private function zoomIn(e:MouseEvent)
+		{
+			// Узнаем координаты клика
+			var rowcol = getFigureCords(cv_mc.mouseX, cv_mc.mouseY);
+			
+			// Затемнение фона
+			cv_mc.dimmer_mc.dimmer_frame_mc.x = rowcol[1]  * (CELL_WIDTH + BORDER_WIDTH);
+			cv_mc.dimmer_mc.dimmer_frame_mc.y = rowcol[0]  * (CELL_HEIGHT + BORDER_WIDTH);
+			new Tween(cv_mc.dimmer_mc, "alpha", Strong.easeInOut, 0, 1.0, .1, true);
+			
+			// Зумируем к фируге
+			var xzoom = rowcol[1] * (CELL_WIDTH ) / 2 + rowcol[1] * (CELL_WIDTH + BORDER_WIDTH*2);
+			var yzoom = rowcol[0] * (CELL_HEIGHT ) / 2 + rowcol[0] * (CELL_HEIGHT + BORDER_WIDTH*2);
+			
+			cv_mc.setRegistration(xzoom, yzoom);
+			
+			new Tween(cv_mc, "scaleX2", Strong.easeInOut, 1, 2.95, .5, true);
+			new Tween(cv_mc, "scaleY2", Strong.easeInOut, 1, 2.95, .5, true);
+			
+			// Выдвигаем паллитру
+			new Tween(panel_mc, "y", Strong.easeInOut, 605, 535, .7, true);
 		}
 		
 		public function initPallete() {
@@ -89,15 +152,15 @@
 			
 			g.lineStyle(1, 0x000000);
 			g.beginFill(color, 1);
-			g.drawRect(0, 0, 60, 20);
+			g.drawRect(0, 0, 30, 60);
 			g.endFill();
 			
 			colorButton.color = color;
-			colorButton.x = 555;
-			colorButton.y = 120 + 30 * num;
+			colorButton.x = 30 + 50 * num;
+			colorButton.y = 1;
 			colorButton.buttonMode = true;
 			colorButton.addEventListener(MouseEvent.CLICK, chooseColor);
-			this.addChild(colorButton);
+			panel_mc.addChild(colorButton);
 			
 			return colorButton;
 		}
@@ -113,13 +176,13 @@
 			output("==============================================");
 			
 			// Выводим все фигуры, у которых закрашены границы:
-			traceFigures(BORDER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТЫ ГРАНИЦЫ");
+			traceFigures(BORDER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТЫ ГРАНИЦЫ:");
 			
 			// Выводим все фигуры, у которых закрашено внутреннее пространство:
-			traceFigures(INNER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНУТРЕННЕЕ ПРОСТРАНСТВО");
+			traceFigures(INNER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНУТРЕННЕЕ ПРОСТРАНСТВО:");
 			
 			// Выводим все фигуры, у которых закрашено внешнее пространство:
-			traceFigures(OUTER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНЕШНЕЕ ПРОСТРАНСТВО");
+			traceFigures(OUTER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНЕШНЕЕ ПРОСТРАНСТВО:");
 			
 			output("Нажмите тильду \"`\" чтобы спрятать консоль");
 			console.show();
@@ -132,7 +195,7 @@
 			{
 				for (var j: int = 0; j < 3; j++)
 				{
-					if (countKeys(this.figures[type][i][j] as Dictionary) > 0) //@TODO: Можно проверять наличие хотя бы одного ключа, вместо того , чтобы считать их все
+					if (hasKeys(this.figures[type][i][j] as Dictionary)) 
 					{
 						output("* Фигура " + (i+1) + "X" + (j+1) + ": ");
 						for (var key:* in (this.figures[type][i][j] as Dictionary) ) {
@@ -150,6 +213,14 @@
 				n++;
 			}
 			return n;
+		}
+		
+		private static function hasKeys(myDictionary:flash.utils.Dictionary):Boolean
+		{
+			for (var key:* in myDictionary) {
+				return true;
+			}
+			return false;
 		}
 		
 		private function startDrawing(e:MouseEvent):void
@@ -210,15 +281,19 @@
 		
 		private function getFigureCords(x: int, y: int)
 		{
-			var color = this.framesMask.getPixel(x, y);
-			var g = color >> 8 &0xFF;
-			var b = color & 0xFF;
+			var col = Math.floor(x / (CELL_WIDTH + BORDER_WIDTH)) as int;
+			var row = Math.floor(y / (CELL_HEIGHT + BORDER_WIDTH)) as int;
 			
-			var row = Math.floor(g / 0x33 - 1) as int;
-			var col = Math.floor(b / 0x33 - 1) as int;
+			if (row >= 3)
+				row = 2;
+			else if (row < 0)
+				row = 0;
+				
+			if (col >= 3)
+				col = 2;
+			else if (col < 0)
+				col = 0;
 			
-			if (row >= 3 || row < 0 || col >= 3 || col < 0)
-				return null;
 			return new Array(row, col);
 		}
 	}
