@@ -23,6 +23,8 @@
 		const CELL_HEIGHT = 160;
 		const BORDER_WIDTH = 5;
 		
+		private const zoomFactor: Number = 2.95;
+		
 		private var colors: Dictionary;
 		
 		private var drawingShape: Shape;
@@ -91,8 +93,8 @@
 			new Tween(cv_mc.dimmer_mc, "alpha", Strong.easeInOut, 1.0, 0, .7, true);
 			
 			// Зумируем от фигуры
-			new Tween(cv_mc, "scaleX2", Strong.easeInOut, 2.95, 1, .5, true);
-			new Tween(cv_mc, "scaleY2", Strong.easeInOut, 2.95, 1, .5, true);
+			new Tween(cv_mc, "scaleX2", Strong.easeInOut, zoomFactor, 1, .5, true);
+			new Tween(cv_mc, "scaleY2", Strong.easeInOut, zoomFactor, 1, .5, true);
 			
 			// Прячем паллитру
 			new Tween(panel_mc, "y", Strong.easeInOut, 535, 605, .2, true);
@@ -130,8 +132,8 @@
 			
 			cv_mc.setRegistration(xzoom, yzoom);
 			
-			new Tween(cv_mc, "scaleX2", Strong.easeInOut, 1, 2.95, .5, true);
-			new Tween(cv_mc, "scaleY2", Strong.easeInOut, 1, 2.95, .5, true);
+			new Tween(cv_mc, "scaleX2", Strong.easeInOut, 1, zoomFactor, .5, true);
+			new Tween(cv_mc, "scaleY2", Strong.easeInOut, 1, zoomFactor, .5, true);
 			
 			// Выдвигаем паллитру
 			new Tween(panel_mc, "y", Strong.easeInOut, 605, 535, .7, true);
