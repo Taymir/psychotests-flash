@@ -1,7 +1,7 @@
 ﻿package  {
-	
 	import fl.transitions.Tween;
 	import fl.transitions.easing.*;
+	import flash.display.Bitmap;
 	import flash.display.MovieClip;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
@@ -12,19 +12,23 @@
 	import flash.utils.Dictionary;
 	import rl.dev.*; 
 	import flash.ui.Mouse;
+	import flash.utils.getTimer;
 	
 	
 	public class psychotest extends MovieClip {
-		const BORDER = 0;
-		const INNER  = 1;
-		const OUTER  = 2;
+		const OUTER  = 0;
+		const BORDER = 1;
+		const INNER  = 2;
 		
 		const CELL_WIDTH = 180;
 		const CELL_HEIGHT = 160;
 		const BORDER_WIDTH = 5;
 		
-		private const zoomFactor: Number = 2.95;
+		const DEFAULT_COLOR:uint = 0xEAF9D2; //@TODO: в будущем брать из флеша 
 		
+		private const zoomFactor: Number = 2.95;
+		private var zoomed: Boolean = false;
+				
 		private var colors: Dictionary;
 		
 		private var drawingShape: Shape;
@@ -32,47 +36,125 @@
 		
 		private var bordersMask: BitmapData;
 		private var innerMask: BitmapData;
-		private var framesMask: BitmapData;
-		
-		private var figures: Array;
 		
 		private var console: SWFConsole;
 		
-		private var zoomed: Boolean = false;
-		
 		public function psychotest() {
+			// Инициализация паллитры
 			this.initPallete();
 			
+			// Загрузка масок
 			this.innerMask = new figures_inner();
 			this.bordersMask = new figures_borders();
 			
+			// Инициализация canvasa: dimmer, zoominout
 			cv_mc.dimmer_mc.alpha = 0;
 			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
 			cv_mc.useHandCursor = true;
 			cv_mc.buttonMode = true;
 			
+			// Настройки brush_cursor
 			brush_cursor_mc.mouseChildren = false;
 			brush_cursor_mc.mouseEnabled = false;
-			
 			brush_cursor_mc.visible = false;
 			
-			figures = [];
-			for(var i:int = 0; i < 3; i++)
-			{
-				figures[i] = [];
-				for(var j:int = 0; j < 3; j++)
-				{
-					figures[i][j] = [];
-					for(var k:int = 0; k < 3; k++)
-					{
-						figures[i][j][k] = new Dictionary();
-					}
-				}
-			}
-			
+			// Инициализация кнопки res и консоли
 			res_btn.addEventListener(MouseEvent.CLICK, showResults); 
 			console = new SWFConsole(640, 550, true)
 			addChild( console );
+		}
+		
+		public function initPallete() {
+			this.colors = new Dictionary();
+			//@TMP for debug output
+			colors[0xFFFF00] = "Желтый";
+			colors[0xFF0000] = "Красный";
+			colors[0x9900FF] = "Фиолетовый";
+			colors[0x00FF00] = "Зеленый";
+			colors[0xFF9900] = "Оранжевый";
+			colors[0xFFFFFF] = "Белый";
+			colors[0x0000FF] = "Синий";
+			colors[0x000000] = "Черный";
+			colors[0x00FFFF] = "Голубой";
+			colors[0xFFCCFF] = "Розовый";
+			
+			addColorButton(0xFFFF00, 0); // Желтый
+			addColorButton(0xFF0000, 1); // Красный
+			addColorButton(0x9900FF, 2); // Фиолетовый
+			addColorButton(0x00FF00, 3); // Зеленый
+			addColorButton(0xFF9900, 4); // Оранжевый
+			addColorButton(0xFFFFFF, 5); // Белый
+			addColorButton(0x0000FF, 6); // Синий
+			addColorButton(0x000000, 7); // Черный
+			addColorButton(0x00FFFF, 8); // Голубой
+			addColorButton(0xFFCCFF, 9); // Розовый
+		}
+		
+		private function addColorButton(color: uint, num: int): MovieClip
+		{
+			var colorButton: MovieClip = new MovieClip();
+			var g: Graphics = colorButton.graphics;
+			
+			g.lineStyle(1, 0x000000);
+			g.beginFill(color, 1);
+			//g.beginGradientFill("linear", new Array(color, color - 1), new Array(100, 100), new Array(0, 255));//@TODO: красивые градиенты
+			g.drawRect(0, 0, 30, 60);
+			g.endFill();
+			
+			colorButton.color = color;
+			colorButton.x = 30 + 50 * num;
+			colorButton.y = 1;
+			colorButton.buttonMode = true;
+			colorButton.addEventListener(MouseEvent.CLICK, chooseColor);
+			panel_mc.addChild(colorButton);
+			
+			return colorButton;
+		}
+		
+		private function chooseColor(e:MouseEvent): void
+		{
+			this.currentColor = e.target.color;
+			
+			// Добавляем возможность рисовать
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
+			cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
+			
+			// Brush_cursor
+			addEventListener(MouseEvent.MOUSE_MOVE, cursor);
+		}
+		
+		private function startDrawing(e:MouseEvent):void
+		{
+			drawingShape = new Shape();
+			cv_mc.user_canvas_mc.addChild(drawingShape);
+			cv_mc.addEventListener(MouseEvent.MOUSE_MOVE, drawing);
+			
+			drawingShape.graphics.lineStyle(5, this.currentColor);
+			drawingShape.graphics.moveTo(cv_mc.mouseX, cv_mc.mouseY);
+		}
+		
+		private function stopDrawing(e:MouseEvent): void
+		{
+			cv_mc.removeEventListener(MouseEvent.MOUSE_MOVE, drawing);
+		}
+		
+		private function drawing(e:MouseEvent): void
+		{
+			drawingShape.graphics.lineTo( cv_mc.mouseX, cv_mc.mouseY);
+		}
+		
+		private function cursor(e:MouseEvent)
+		{
+			if(mask_mc.hitTestPoint(mouseX, mouseY))
+			{
+				Mouse.hide();
+				brush_cursor_mc.visible = true
+				brush_cursor_mc.x = mouseX;
+				brush_cursor_mc.y = mouseY;
+			} else {
+				Mouse.show();
+				brush_cursor_mc.visible = false;
+			}
 		}
 		
 		private function zoomInOut(e:MouseEvent)
@@ -85,35 +167,6 @@
 				zoomOut(e)
 				zoomed = false;
 			}
-		}
-		
-		private function zoomOut(e:MouseEvent)
-		{
-			// Осветление фона
-			new Tween(cv_mc.dimmer_mc, "alpha", Strong.easeInOut, 1.0, 0, .7, true);
-			
-			// Зумируем от фигуры
-			new Tween(cv_mc, "scaleX2", Strong.easeInOut, zoomFactor, 1, .5, true);
-			new Tween(cv_mc, "scaleY2", Strong.easeInOut, zoomFactor, 1, .5, true);
-			
-			// Прячем паллитру
-			new Tween(panel_mc, "y", Strong.easeInOut, 535, 605, .2, true);
-			
-			// Убираем возможность зумаута по фону
-			back_mc.removeEventListener(MouseEvent.MOUSE_UP, zoomInOut);
-			back_mc.buttonMode = true;
-			back_mc.useHandCursor = true;
-			
-			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
-			cv_mc.useHandCursor = true;
-			cv_mc.buttonMode = true;
-			
-			// Убираем возможность рисовать
-			cv_mc.removeEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
-			cv_mc.removeEventListener(MouseEvent.MOUSE_UP, stopDrawing);
-			
-			brush_cursor_mc.visible = false;
-			removeEventListener(MouseEvent.MOUSE_MOVE, cursor);
 		}
 		
 		private function zoomIn(e:MouseEvent)
@@ -148,166 +201,151 @@
 			cv_mc.buttonMode = false;
 		}
 		
-		private function cursor(e:MouseEvent)
+		private function zoomOut(e:MouseEvent)
 		{
-			if(mask_mc.hitTestPoint(mouseX, mouseY))
-			{
-				Mouse.hide();
-				brush_cursor_mc.visible = true
-				brush_cursor_mc.x = mouseX;
-				brush_cursor_mc.y = mouseY;
-			} else {
-				Mouse.show();
-				brush_cursor_mc.visible = false;
-			}
-		}
-		
-		public function initPallete() {
-			this.colors = new Dictionary();
-			colors[0xFFFF00] = "Желтый";
-			colors[0xFF0000] = "Красный";
-			colors[0x9900FF] = "Фиолетовый";
-			colors[0x00FF00] = "Зеленый";
-			colors[0xFF9900] = "Оранжевый";
-			colors[0xFFFFFF] = "Белый";
-			colors[0x0000FF] = "Синий";
-			colors[0x000000] = "Черный";
-			colors[0x00FFFF] = "Голубой";
-			colors[0xFFCCFF] = "Розовый";
+			// Осветление фона
+			new Tween(cv_mc.dimmer_mc, "alpha", Strong.easeInOut, 1.0, 0, .7, true);
 			
+			// Зумируем от фигуры
+			new Tween(cv_mc, "scaleX2", Strong.easeInOut, zoomFactor, 1, .5, true);
+			new Tween(cv_mc, "scaleY2", Strong.easeInOut, zoomFactor, 1, .5, true);
 			
-			addColorButton(0xFFFF00, 0); // Желтый
-			addColorButton(0xFF0000, 1); // Красный
-			addColorButton(0x9900FF, 2); // Фиолетовый
-			addColorButton(0x00FF00, 3); // Зеленый
-			addColorButton(0xFF9900, 4); // Оранжевый
-			addColorButton(0xFFFFFF, 5); // Белый
-			addColorButton(0x0000FF, 6); // Синий
-			addColorButton(0x000000, 7); // Черный
-			addColorButton(0x00FFFF, 8); // Голубой
-			addColorButton(0xFFCCFF, 9); // Розовый
-		}
-		
-		private function addColorButton(color: uint, num: int): MovieClip
-		{
-			var colorButton: MovieClip = new MovieClip();
-			var g: Graphics = colorButton.graphics;
+			// Прячем паллитру
+			new Tween(panel_mc, "y", Strong.easeInOut, 535, 605, .2, true);
 			
-			g.lineStyle(1, 0x000000);
-			g.beginFill(color, 1);
-			//g.beginGradientFill("linear", new Array(color, color - 1), new Array(100, 100), new Array(0, 255));
-			g.drawRect(0, 0, 30, 60);
-			g.endFill();
+			// Убираем возможность зумаута по фону
+			back_mc.removeEventListener(MouseEvent.MOUSE_UP, zoomInOut);
+			back_mc.buttonMode = true;
+			back_mc.useHandCursor = true;
 			
-			colorButton.color = color;
-			colorButton.x = 30 + 50 * num;
-			colorButton.y = 1;
-			colorButton.buttonMode = true;
-			colorButton.addEventListener(MouseEvent.CLICK, chooseColor);
-			panel_mc.addChild(colorButton);
+			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, zoomInOut);		
+			cv_mc.useHandCursor = true;
+			cv_mc.buttonMode = true;
 			
-			return colorButton;
-		}
-		
-		private function chooseColor(e:MouseEvent): void
-		{
-			this.currentColor = e.target.color;
+			// Убираем возможность рисовать
+			cv_mc.removeEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
+			cv_mc.removeEventListener(MouseEvent.MOUSE_UP, stopDrawing);
 			
-			// Добавляем возможность рисовать
-			cv_mc.addEventListener(MouseEvent.MOUSE_DOWN, startDrawing);
-			cv_mc.addEventListener(MouseEvent.MOUSE_UP, stopDrawing);
-			
-			addEventListener(MouseEvent.MOUSE_MOVE, cursor);
+			// Убираем brush_cursor
+			brush_cursor_mc.visible = false;
+			removeEventListener(MouseEvent.MOUSE_MOVE, cursor);
 		}
 		
 		private function showResults(e:MouseEvent):void //@REFACTOR
 		{
+			var initTime:int = getTimer();
+			
+			var result:Vector.<ColorFragment> = formResultArray(cv_mc.user_canvas_mc); 
+			
 			output("==============================================");
 			output("==============================================");
 			
-			// Выводим все фигуры, у которых закрашены границы:
-			traceFigures(BORDER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТЫ ГРАНИЦЫ:");
-			
-			// Выводим все фигуры, у которых закрашено внутреннее пространство:
-			traceFigures(INNER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНУТРЕННЕЕ ПРОСТРАНСТВО:");
-			
-			// Выводим все фигуры, у которых закрашено внешнее пространство:
-			traceFigures(OUTER, "ФИГУРЫ,  У КОТОРЫХ ЗАТРОНУТО ВНЕШНЕЕ ПРОСТРАНСТВО:");
+			for (var i = 0; i < result.length; i++)
+			{
+				if (i == 0 || result[i - 1].figure_row != result[i].figure_row || result[i - 1].figure_col != result[i].figure_col)
+				{
+					output("* Фигура " + (result[i].figure_row + 1) + "X" + (result[i].figure_col + 1) + ": ");
+				}
+				
+				if (i == 0 || result[i - 1].fragment != result[i].fragment)
+				{
+					if(result[i].fragment == BORDER)
+						output("== КОНТУР");
+					else if (result[i].fragment == INNER)
+						output("== ТЕЛО");
+					else if (result[i].fragment == OUTER)
+						output("== ФОН");
+				}
+				
+				output("---Цвет: " + this.colors[result[i].color] + ", точек: " + result[i].size);
+			}
+			output("Время обработки: " + (getTimer() - initTime));
 			
 			output("Нажмите тильду \"`\" чтобы спрятать консоль");
 			console.show();
 		}
 		
-		private function traceFigures(type: int, text: String)
+		private function formResultArray(mc: MovieClip): Vector.<ColorFragment>
 		{
-			output(text);
-			for (var i: int = 0; i < 3; i++)
+			var bmp: BitmapData = new BitmapData(mc.width, mc.height, false, 0xFF00FF);
+			
+			var q:String = stage.quality;
+			stage.quality = "low";
+			bmp.draw(mc);
+			stage.quality = q;
+			
+			var result:Vector.<ColorFragment> = new Vector.<ColorFragment>();
+			
+			// Для каждой строки
+			for (var i:int = 0; i < 3; i++)
 			{
-				for (var j: int = 0; j < 3; j++)
+				// Для каждого столбца -фигуры
+				for (var j:int = 0; j < 3; j++)
 				{
-					if (hasKeys(this.figures[type][i][j] as Dictionary)) 
+					// Для каждой фигуры:
+					// Составить временный массив результатов
+					var figureResult:Array = new Array();
+					for (var k:int = 0; k < 3; k++)
 					{
-						output("* Фигура " + (i+1) + "X" + (j+1) + ": ");
-						for (var key:* in (this.figures[type][i][j] as Dictionary) ) {
-							output("-- Цвет: " + this.colors[key] + ", точек: " + this.figures[type][i][j][key]); 
+						figureResult[k] = new Dictionary();
+					}
+					
+					var unknown: int = 0; var known: int = 0;
+					// Выделить Цветовые фрагменты фигуры ixj
+					for (var y:int = (i) * (CELL_HEIGHT + BORDER_WIDTH); y < (i + 1) * (CELL_HEIGHT + BORDER_WIDTH); y++)
+					{
+						for (var x:int = (j) * (CELL_WIDTH + BORDER_WIDTH); x < (j + 1) * (CELL_WIDTH + BORDER_WIDTH); x++)
+						{
+							// Для каждого пикселя
+							// получить цвет пикселя
+							var color:uint = bmp.getPixel(x, y);
+							// получить тип фрагмента
+							var fragment: int = getMask(x, y);
+							
+							// Проверяем цвет среди известных цветов палитры
+							if (this.colors.hasOwnProperty(color))
+							{
+								// Добавляем +1 к количеству пикселей данного цвета в данном фрагменте
+								if (figureResult[fragment].hasOwnProperty(color))
+								{
+									figureResult[fragment][color]++; 
+								}
+								else
+								{
+									figureResult[fragment][color] = 1;
+								}
+							} else if (color != 0xFF00FF) {
+								//trace("Unknown color: " + color.toString(16)); //@DEBUG
+							}
+						}
+					}
+					
+					// Анализируем временный массив результатов
+					for (k = 0; k < 3; k++)
+					{
+
+						//@TODO: Наверное, надо отсортировать массив цветов, иначе получится непонятный разнобой
+						// hint: http://www.jonnyreeves.co.uk/2009/06/sorting-values-stored-in-a-dictionary/
+						for (var c:* in figureResult[k])
+						{
+							var CF:ColorFragment = new ColorFragment();
+							CF.figure_row = i;
+							CF.figure_col = j;
+							CF.fragment = k;
+							CF.color = c;
+							CF.size = figureResult[k][c];
+							
+							CF.color_native =  true;//@TODO
+							CF.figure_native = true;//@TODO
+							
+							result.push(CF);
 						}
 					}
 				}
 			}
-		}
-		
-		private static function countKeys(myDictionary:flash.utils.Dictionary):int 
-		{
-			var n:int = 0;
-			for (var key:* in myDictionary) {
-				n++;
-			}
-			return n;
-		}
-		
-		private static function hasKeys(myDictionary:flash.utils.Dictionary):Boolean
-		{
-			for (var key:* in myDictionary) {
-				return true;
-			}
-			return false;
-		}
-		
-		private function startDrawing(e:MouseEvent):void
-		{
-			drawingShape = new Shape();
-			cv_mc.addChild(drawingShape);
-			cv_mc.addEventListener(MouseEvent.MOUSE_MOVE, drawing);
+			//this.addChild(new Bitmap(bmp, "auto", false));//@DEBUG
 			
-			drawingShape.graphics.lineStyle(5, this.currentColor);
-			drawingShape.graphics.moveTo(cv_mc.mouseX, cv_mc.mouseY);
-			addPoint(this.currentColor);
-		}
-		
-		private function stopDrawing(e:MouseEvent): void
-		{
-			cv_mc.removeEventListener(MouseEvent.MOUSE_MOVE, drawing);
-		}
-		
-		private function drawing(e:MouseEvent): void
-		{
-			drawingShape.graphics.lineTo( cv_mc.mouseX, cv_mc.mouseY);
-			addPoint(this.currentColor);
-		}
-		
-		private function addPoint(color: uint)
-		{
-			var rowcol = getFigureCords(cv_mc.mouseX, cv_mc.mouseY);
-			
-			if (rowcol)
-			{
-				var maskType = getMask(cv_mc.mouseX, cv_mc.mouseY);
-				
-				if(color in this.figures[maskType][rowcol[0]][rowcol[1]])
-					this.figures[maskType][rowcol[0]][rowcol[1]][color]++;
-				else
-					this.figures[maskType][rowcol[0]][rowcol[1]][color] = 1;
-			}
+			return result;
 		}
 		
 		private function getMask(x: int, y: int): int
