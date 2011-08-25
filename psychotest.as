@@ -39,6 +39,9 @@
 		
 		private var console: SWFConsole;
 		
+		private var fragmentAreas: Array;
+		private var nativeColors:Array;
+		
 		public function psychotest() {
 			// Инициализация паллитры
 			this.initPallete();
@@ -46,6 +49,8 @@
 			// Загрузка масок
 			this.innerMask = new figures_inner();
 			this.bordersMask = new figures_borders();
+			this.fragmentAreas = determineFragmentAreas();
+			this.nativeColors = fillNativeColors();
 			
 			// Инициализация canvasa: dimmer, zoominout
 			cv_mc.dimmer_mc.alpha = 0;
@@ -62,6 +67,58 @@
 			res_btn.addEventListener(MouseEvent.CLICK, showResults); 
 			console = new SWFConsole(640, 550, true)
 			addChild( console );
+		}
+		
+		private function determineFragmentAreas(): Array//@OPTIMIZE
+		{
+			var result = [];
+			
+			for (var i:int = 0; i < 3; i++)
+			{
+				result[i] = [];
+				for (var j:int = 0; j < 3; j++)
+				{
+					result[i][j] = [];
+					
+					result[i][j][OUTER] = 0;
+					result[i][j][BORDER] = 0;
+					result[i][j][INNER] = 0;
+					
+					for (var y:int = (i) * (CELL_HEIGHT + BORDER_WIDTH); y < (i + 1) * (CELL_HEIGHT + BORDER_WIDTH); y++)
+					{
+						for (var x:int = (j) * (CELL_WIDTH + BORDER_WIDTH); x < (j + 1) * (CELL_WIDTH + BORDER_WIDTH); x++)
+						{
+							var fragment:int = getMask(x, y);
+							result[i][j][fragment]++;
+						}
+					}
+				}
+			}
+
+			return result;
+		}
+		
+		private function fillNativeColors(): Array
+		{
+			var r:Array = [];
+			
+			r[0] = [];
+			r[1] = [];
+			r[2] = [];
+			
+			r[0][0] = [0x00FFFF, 0x0000FF, 0x9900FF];
+			r[0][1] = [0xFF0000, 0xFF9900, 0xFFCCFF, 0x0000FF, 0xFFFFFF];
+			r[0][2] = [0xFF0000, 0xFF9900, 0xFFCCFF, 0x0000FF, 0xFFFFFF, 0x00FF00];
+			
+			r[1][0] = [0x00FFFF, 0x0000FF, 0x9900FF, 0x000000, 0xFF0000, 0xFFFF00, 0x00FF00];
+			r[1][1] = [0x00FFFF, 0x0000FF, 0x9900FF, 0x000000, 0xFF0000, 0xFFFF00, 0x00FF00];
+			r[1][2] = [0xFFFF00, 0xFF0000, 0x00FF00, 0x9900FF, 0x000000];
+			
+			r[2][0] = [0xFFFF00, 0xFF0000, 0x00FF00, 0x9900FF, 0xFF9900, 0xFFCCFF, 0x000000, 0xFFFFFF];
+			r[2][1] = [0xFFFF00, 0xFF0000, 0x00FF00, 0x9900FF, 0x000000];
+			r[2][2] = [0xFF0000, 0xFFFF00, 0x0000FF, 0xFFFFFF];// Здесь вместо оранжевого - желтый
+			
+			return r;
 		}
 		
 		public function initPallete() {
@@ -247,7 +304,7 @@
 					output("* Фигура " + (result[i].figure_row + 1) + "X" + (result[i].figure_col + 1) + ": ");
 				}
 				
-				if (i == 0 || result[i - 1].fragment != result[i].fragment)
+				if (i == 0 || result[i - 1].fragment != result[i].fragment || result[i - 1].figure_row != result[i].figure_row || result[i - 1].figure_col != result[i].figure_col)
 				{
 					if(result[i].fragment == BORDER)
 						output("== КОНТУР");
@@ -257,7 +314,10 @@
 						output("== ФОН");
 				}
 				
-				output("---Цвет: " + this.colors[result[i].color] + ", точек: " + result[i].size);
+				var color_native: String = result[i].color_native ? "Цвет родной" : "Цвет неродной";
+				var figure_native: String = result[i].figure_native ? "Фигура родная" : "Фигура неродная";
+				
+				output("---Цвет: " + this.colors[result[i].color] + ", точек: " + result[i].size + ", " + color_native + ", " + figure_native);
 			}
 			output("Время обработки: " + (getTimer() - initTime));
 			
@@ -265,7 +325,7 @@
 			console.show();
 		}
 		
-		private function formResultArray(mc: MovieClip): Vector.<ColorFragment>
+		private function formResultArray(mc: MovieClip): Vector.<ColorFragment>//@OPTIMIZE
 		{
 			var bmp: BitmapData = new BitmapData(mc.width, mc.height, false, 0xFF00FF);
 			
@@ -335,10 +395,11 @@
 							CF.color = c;
 							CF.size = figureResult[k][c];
 							
-							CF.color_native =  true;//@TODO
-							CF.figure_native = true;//@TODO
+							CF.figure_native = (CF.size >= fragmentAreas[i][j][k] * 0.7 ? true : false);
+							CF.color_native =  (CF.figure_native ? (nativeColors[i][j].indexOf(c) == -1 ? false : true) : true);
 							
-							result.push(CF);
+							if(CF.size >= fragmentAreas[i][j][k] * 0.007)// Игнорируем фрагменты, где закрашено менее 5% 
+								result.push(CF);
 						}
 					}
 				}
